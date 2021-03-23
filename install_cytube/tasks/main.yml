@@ -1,0 +1,59 @@
+- name: Install libselinux
+  become: yes
+  yum:
+    state: present
+    name:
+      - libselinux-python3
+
+- name: Creating Mysql data directory
+  become: yes
+  file:
+    path: /storage/mysql
+    state: directory
+
+- name: Creating Cytube config directory
+  become: yes
+  file:
+    path: /storage/cytube
+    state: directory
+
+- name: Copying Cytube config
+  become: yes
+  copy:
+    src: config.yaml
+    dest: /storage/cytube/config.yaml
+
+- name: "Create docker network"
+  docker_network:
+    name: cytube
+
+- name: "Deploy MariaDB"
+  docker_container:
+    name: mariadb
+    image: "{{ mariadb_image_name }}"
+    state: started
+    recreate: yes
+    restart_policy: always
+    volumes:
+      - /storage/mysql:/var/lib/mysql
+    env:
+      MYSQL_ROOT_PASSWORD: "{{ MARIADB_ROOT_PASSWORD }}"
+      MYSQL_DATABASE: "{{ MARIADB_DATABASE }}"
+      MYSQL_USER: "{{ MARIADB_USER }}"
+      MYSQL_PASSWORD: "{{ MARIADB_PASSWORD }}"
+    networks:
+      - name: cytube
+
+- name: "Deploy Cytube"
+  docker_container:
+    name: cytube
+    image: "{{ cytube_image_name }}"
+    state: started
+    recreate: yes
+    restart_policy: always
+    volumes:
+      - /storage/cytube/config.yaml:/home/cytube/sync/config.yaml
+    ports:
+      - 8080:8080
+    networks:
+      - name: cytube
